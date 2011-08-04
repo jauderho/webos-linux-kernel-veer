@@ -380,8 +380,8 @@ void __init msm_acpu_clock_init(struct msm_acpu_clock_platform_data *clkdata)
 	drv_state.acpu_switch_time_us = clkdata->acpu_switch_time_us;
 	drv_state.vdd_switch_time_us = clkdata->vdd_switch_time_us;
 	/* PLL2 runs at 1024MHz for MSM8x55. */
-	if (cpu_is_msm8x55())
-		pll2_1024mhz_fixup();
+	/* 1st level overclock of Veer */
+	pll2_1024mhz_fixup();
 	acpuclk_init();
 	lpj_init();
 #ifdef CONFIG_CPU_FREQ_MSM
