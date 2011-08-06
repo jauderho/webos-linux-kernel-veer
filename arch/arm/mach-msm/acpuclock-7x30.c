@@ -52,6 +52,8 @@
 
 #define MAX_AXI_KHZ 192000
 
+#define PLL2_L_VAL_ADDR  (MSM_CLK_CTL_BASE + 0x33c)
+
 struct clock_state {
 	struct clkctl_acpu_speed	*current_speed;
 	struct mutex			lock;
@@ -77,27 +79,28 @@ static struct cpufreq_frequency_table freq_table[] = {
 	{ 1, 245760 },
 	{ 2, 368640 },
 	{ 3, 768000 },
-	/* 806.4MHz is updated to 1024MHz at runtime for MSM8x55. */
 	{ 4, 806400 },
-	{ 5, CPUFREQ_TABLE_END },
+	{ 5, 1017600 },
+	{ 6, CPUFREQ_TABLE_END },
 };
 
 /* Use negative numbers for sources that can't be enabled/disabled */
 #define SRC_LPXO (-2)
 #define SRC_AXI  (-1)
 static struct clkctl_acpu_speed acpu_freq_tbl[] = {
-	{ 24576,  SRC_LPXO, 0, 0,  30720,  1000, VDD_RAW(1000) },
-	{ 61440,  PLL_3,    5, 11, 61440,  1000, VDD_RAW(1000) },
-	{ 122880, PLL_3,    5, 5,  61440,  1000, VDD_RAW(1000) },
-	{ 184320, PLL_3,    5, 4,  61440,  1000, VDD_RAW(1000) },
-	{ MAX_AXI_KHZ, SRC_AXI, 1, 0, 61440, 1000, VDD_RAW(1000) },
-	{ 245760, PLL_3,    5, 2,  61440,  1000, VDD_RAW(1000) },
-	{ 368640, PLL_3,    5, 1,  122800, 1050, VDD_RAW(1050) },
-	{ 768000, PLL_1,    2, 0,  153600, 1100, VDD_RAW(1100) },
+	{ 24576,  SRC_LPXO, 0, 0,  30720,  950, VDD_RAW(950) },
+	{ 61440,  PLL_3,    5, 11, 61440,  950, VDD_RAW(950) },
+	{ 122880, PLL_3,    5, 5,  61440,  950, VDD_RAW(950) },
+	{ 184320, PLL_3,    5, 4,  61440,  950, VDD_RAW(950) },
+	{ MAX_AXI_KHZ, SRC_AXI, 1, 0, 61440, 950, VDD_RAW(950) },
+	{ 245760, PLL_3,    5, 2,  61440,  950, VDD_RAW(950) },
+	{ 368640, PLL_3,    5, 1,  122800, 1000, VDD_RAW(1000) },
+	{ 768000, PLL_1,    2, 0,  153600, 1050, VDD_RAW(1050) },
 	/* ACPU >= 806.4MHz requires MSMC1 @ 1.2V. Voting for
 	 * AXI @ 192MHz accomplishes this implicitly. 806.4MHz
 	 * is updated to 1024MHz at runtime for MSM8x55. */
 	{ 806400, PLL_2,    3, 0,  192000, 1100, VDD_RAW(1100) },
+	{ 1017600, PLL_2,    3, 0,  192000, 1100, VDD_RAW(1100) },
 	{ 0 }
 };
 
@@ -144,6 +147,11 @@ static void acpuclk_set_src(const struct clkctl_acpu_speed *s)
 	reg_clkctl |= s->acpu_src_sel << (4 + 8 * src_sel);
 	reg_clkctl |= s->acpu_src_div << (0 + 8 * src_sel);
 	writel(reg_clkctl, SCSS_CLK_CTL_ADDR);
+
+	/* Program PLL2 L val for overclocked speeds. */
+	if(s->src == PLL_2) {
+		writel(s->acpu_clk_khz/19200, PLL2_L_VAL_ADDR);
+	}
 
 	/* Toggle clock source. */
 	reg_clksel ^= 1;
@@ -379,9 +387,7 @@ void __init msm_acpu_clock_init(struct msm_acpu_clock_platform_data *clkdata)
 	mutex_init(&drv_state.lock);
 	drv_state.acpu_switch_time_us = clkdata->acpu_switch_time_us;
 	drv_state.vdd_switch_time_us = clkdata->vdd_switch_time_us;
-	/* PLL2 runs at 1024MHz for MSM8x55. */
-	/* 1st level overclock of Veer */
-	pll2_1024mhz_fixup();
+
 	acpuclk_init();
 	lpj_init();
 #ifdef CONFIG_CPU_FREQ_MSM
